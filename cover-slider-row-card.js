@@ -1,4 +1,4 @@
-const CSR_VERSION = '1.1.1';
+const CSR_VERSION = '1.1.2';
 
 console.info(
   `%c COVER-SLIDER-ROW-CARD %c v${CSR_VERSION} `,
@@ -325,6 +325,19 @@ class CoverSliderRowCard extends HTMLElement {
 
     const moving = stateObj?.state === 'opening' || stateObj?.state === 'closing';
     els.root.classList.toggle('cs-moving', moving);
+
+    let realPos = null;
+    if (stateObj?.attributes?.current_position !== undefined && stateObj.attributes.current_position !== null) {
+      realPos = stateObj.attributes.current_position;
+    } else if (stateObj?.state === 'open') {
+      realPos = 100;
+    } else if (stateObj?.state === 'closed') {
+      realPos = 0;
+    }
+    const fullyOpen = realPos === 100;
+    const fullyClosed = realPos === 0;
+    if (els.up) els.up.disabled = unavailable || fullyOpen;
+    if (els.down) els.down.disabled = unavailable || fullyClosed;
   }
 
   _css() {
@@ -387,6 +400,17 @@ class CoverSliderRowCard extends HTMLElement {
       }
       .cs-btn:hover { background: rgba(127,127,127,0.22); color: var(--cs-accent); }
       .cs-btn:active { transform: scale(0.92); }
+      .cs-btn:disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
+        background: rgba(127,127,127,0.06);
+        color: var(--secondary-text-color);
+        transform: none;
+      }
+      .cs-btn:disabled:hover {
+        background: rgba(127,127,127,0.06);
+        color: var(--secondary-text-color);
+      }
       .cs-btn ha-icon { --mdc-icon-size: 20px; }
       .cs-btn-stop { background: rgba(239, 68, 68, 0.12); }
       .cs-btn-stop:hover { background: rgba(239, 68, 68, 0.22); color: #ef4444; }
@@ -586,27 +610,170 @@ class CoverSliderRowCardEditor extends HTMLElement {
           border-radius: 3px;
           font-size: 0.78rem;
         }
+        .csr-names { margin: 14px 4px 4px; }
+        .csr-names-heading {
+          font-size: 0.85rem;
+          font-weight: 600;
+          color: var(--primary-text-color);
+          margin-bottom: 6px;
+        }
+        .csr-names-sub {
+          font-size: 0.75rem;
+          color: var(--secondary-text-color);
+          margin-bottom: 8px;
+        }
+        .csr-name-row {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(140px, 1.2fr);
+          gap: 10px;
+          align-items: center;
+          padding: 4px 0;
+        }
+        .csr-name-lbl {
+          display: flex;
+          flex-direction: column;
+          min-width: 0;
+        }
+        .csr-name-friendly {
+          font-size: 0.85rem;
+          color: var(--primary-text-color);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .csr-name-entity {
+          font-size: 0.72rem;
+          color: var(--secondary-text-color);
+          font-family: var(--code-font-family, monospace);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .csr-name-input {
+          font: inherit;
+          padding: 8px 10px;
+          border-radius: 6px;
+          border: 1px solid var(--divider-color, rgba(127,127,127,0.3));
+          background: var(--card-background-color, transparent);
+          color: var(--primary-text-color);
+          width: 100%;
+          box-sizing: border-box;
+        }
+        .csr-name-input:focus {
+          outline: none;
+          border-color: var(--primary-color, #03a9f4);
+        }
       `;
       const wrap = document.createElement('div');
       wrap.className = 'csr-editor';
       const form = document.createElement('ha-form');
       form.addEventListener('value-changed', (ev) => this._valueChanged(ev));
+      const namesSection = document.createElement('div');
+      namesSection.className = 'csr-names';
       const hint = document.createElement('div');
       hint.className = 'csr-hint';
       hint.innerHTML =
         'Tipp: Bei 8 Panels und <code>Stapel = 2</code> erh&auml;ltst du 2 vertikale S&auml;ulen &agrave; 4 Slider ' +
-        '(1&ndash;4 links, 5&ndash;8 rechts). <code>Spalten</code> dagegen f&uuml;llt zeilenweise. ' +
-        'Eigene Namen pro Panel (<code>name:</code>) bleiben in der UI erhalten.';
+        '(1&ndash;4 links, 5&ndash;8 rechts). <code>Spalten</code> dagegen f&uuml;llt zeilenweise.';
       wrap.appendChild(form);
+      wrap.appendChild(namesSection);
       wrap.appendChild(hint);
       this.shadowRoot.appendChild(style);
       this.shadowRoot.appendChild(wrap);
       this._form = form;
+      this._namesSection = namesSection;
+      this._nameInputs = {};
+      this._lastNamesKey = '';
     }
     this._form.hass = this._hass;
     this._form.schema = EDITOR_SCHEMA;
     this._form.data = this._formData();
     this._form.computeLabel = (s) => EDITOR_LABELS[s.name] ?? s.name;
+    this._renderNames();
+  }
+
+  _selectedEntityIds() {
+    if (!Array.isArray(this._config.entities)) return [];
+    return this._config.entities
+      .map((e) => (typeof e === 'string' ? e : e?.entity))
+      .filter(Boolean);
+  }
+
+  _renderNames() {
+    if (!this._namesSection) return;
+    const entities = this._selectedEntityIds();
+    const key = entities.join('|');
+
+    if (key === this._lastNamesKey) {
+      for (const id of entities) {
+        const input = this._nameInputs[id];
+        if (!input) continue;
+        if (this.shadowRoot.activeElement === input) continue;
+        const v = this._namesByEntity[id] ?? '';
+        if (input.value !== v) input.value = v;
+      }
+      return;
+    }
+
+    this._lastNamesKey = key;
+    this._namesSection.innerHTML = '';
+    this._nameInputs = {};
+    if (!entities.length) return;
+
+    const heading = document.createElement('div');
+    heading.className = 'csr-names-heading';
+    heading.textContent = 'Eigene Namen pro Panel';
+    const sub = document.createElement('div');
+    sub.className = 'csr-names-sub';
+    sub.textContent = 'Leer lassen, um den Friendly-Name aus der Entitaet zu verwenden.';
+    this._namesSection.appendChild(heading);
+    this._namesSection.appendChild(sub);
+
+    for (const id of entities) {
+      const row = document.createElement('div');
+      row.className = 'csr-name-row';
+
+      const lbl = document.createElement('div');
+      lbl.className = 'csr-name-lbl';
+      const friendly = this._hass?.states?.[id]?.attributes?.friendly_name ?? id;
+      const f = document.createElement('span');
+      f.className = 'csr-name-friendly';
+      f.textContent = friendly;
+      f.title = friendly;
+      const e = document.createElement('span');
+      e.className = 'csr-name-entity';
+      e.textContent = id;
+      e.title = id;
+      lbl.appendChild(f);
+      lbl.appendChild(e);
+
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'csr-name-input';
+      input.placeholder = friendly;
+      input.value = this._namesByEntity[id] ?? '';
+      input.addEventListener('input', () => this._onNameInput(id, input.value));
+
+      row.appendChild(lbl);
+      row.appendChild(input);
+      this._namesSection.appendChild(row);
+      this._nameInputs[id] = input;
+    }
+  }
+
+  _onNameInput(entityId, raw) {
+    const v = (raw ?? '').trim();
+    if (v) this._namesByEntity[entityId] = v;
+    else delete this._namesByEntity[entityId];
+
+    const entities = this._selectedEntityIds().map((id) => {
+      const name = this._namesByEntity[id];
+      return name ? { entity: id, name } : id;
+    });
+    this._config = { ...this._config, entities };
+    this.dispatchEvent(
+      new CustomEvent('config-changed', { detail: { config: this._config }, bubbles: true, composed: true })
+    );
   }
 
   _valueChanged(ev) {
@@ -614,6 +781,10 @@ class CoverSliderRowCardEditor extends HTMLElement {
     const next = { ...this._config, ...(ev.detail?.value ?? {}) };
 
     if (Array.isArray(next.entities)) {
+      const stillSelected = new Set(next.entities);
+      for (const k of Object.keys(this._namesByEntity)) {
+        if (!stillSelected.has(k)) delete this._namesByEntity[k];
+      }
       next.entities = next.entities.map((id) => {
         const name = this._namesByEntity[id];
         return name ? { entity: id, name } : id;

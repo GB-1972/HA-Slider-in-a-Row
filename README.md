@@ -106,7 +106,14 @@ entities:
 
 ### UI-Editor
 
-Beim Hinzufügen der Karte ist der **visuelle Editor** der Default. Du kannst Entities per Multi-Selector mit Cover-Filter auswählen, Spaltenzahl, Höhe und Farben setzen und Optionen per Schalter umlegen. Eigene Namen pro Panel (`name:`) bleiben beim UI-Speichern erhalten — feinere Anpassungen weiterhin per *„Code-Editor anzeigen"*.
+Beim Hinzufügen der Karte ist der **visuelle Editor** der Default. Du kannst Entities per Multi-Selector mit Cover-Filter auswählen, Spaltenzahl, Höhe und Farben setzen und Optionen per Schalter umlegen. Unter den Allgemein-Feldern erscheint eine Liste **„Eigene Namen pro Panel"** — pro ausgewählter Entity ein Texteingabefeld; leer = Friendly-Name der Entität. Tiefergehende Anpassungen weiterhin per *„Code-Editor anzeigen"*.
+
+### Verhalten der Buttons
+
+- **Auf** ist ausgegraut, wenn das Cover vollständig geöffnet ist (`current_position == 100`).
+- **Ab** ist ausgegraut, wenn das Cover vollständig geschlossen ist (`current_position == 0`).
+- **Stop** bleibt immer aktiv (auch während der Bewegung).
+- Bei `unavailable`/`unknown` sind alle Bedienelemente ausgegraut.
 
 ## Voraussetzungen
 
