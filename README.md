@@ -11,7 +11,7 @@ Ursprünglicher Anwendungsfall: 8 vertikal verstellbare Solarpanels als eine Kar
 - **Vertikaler Slider** pro Cover mit Drag- und Tap-to-Position-Bedienung (Service-Call erst beim Loslassen, kein „Service-Spam" beim Ziehen).
 - **Auf / Ab / Stop** als eigene Buttons, Stop in dezentem Rot abgesetzt.
 - **Prozent-Pill** unter jeder Säule mit Tabular-Numerals.
-- **Multi-Row-Layout** über `cols`: z. B. 8 Cover in 2 Reihen à 4 — ohne horizontalen Scrollbalken.
+- **Multi-Stack-Layout** über `stacks` (vertikale Säulen, column-fill) oder `cols` (Reihen, row-fill): z. B. 8 Cover in 2 vertikalen Säulen à 4 — ohne horizontalen Scrollbalken.
 - **UI-Konfiguration** im Dashboard-Editor (kein YAML zwingend nötig) inkl. Entity-Picker mit Cover-Filter.
 - **Mushroom-Optik**: abgesetzte Tiles, weiche Schatten, frei wählbare Akzentfarbe.
 - **Bewegungs-Indikator**: während `opening`/`closing` umrandet die Säule in der Akzentfarbe.
@@ -62,10 +62,11 @@ Vollständig:
 type: custom:cover-slider-row-card
 title: Solarpanels
 icon: mdi:solar-panel
-cols: 4                      # 8 Entities + cols:4 -> 2 Reihen a 4
+stacks: 2                    # 8 Entities + stacks:2 -> 2 vertikale Säulen à 4 (1-4 links, 5-8 rechts)
+# cols: 4                    # Alternative: row-fill = 2 Reihen à 4 (1-4 oben, 5-8 unten). Nur eines von beiden setzen.
 accent_color: "#f59e0b"     # jede CSS-Farbe; auch var(--rgb-blue) o.ä.
 track_color: "rgba(127,127,127,0.18)"
-height: 160                  # Slider-Höhe in px
+height: 120                  # Slider-Höhe in px
 invert: false                # true, falls 0%=offen interpretiert werden soll
 show_buttons: true
 show_percentage: true
@@ -91,10 +92,11 @@ entities:
 | `entities` | list | – | Pflicht. Liste von `cover.*`-Entity-IDs oder Objekten `{entity, name}`. |
 | `title` | string | `""` | Header über der Reihe; leer = kein Header. |
 | `icon` | string | `mdi:solar-panel` | Icon im Header. |
-| `cols` | number | = Anzahl Entities | Säulen pro Reihe. Bei 8 Entities und `cols: 4` ergibt das 2 Reihen à 4. `0`/unset = alle in einer Reihe. |
+| `stacks` | number | – | Anzahl vertikaler Säulen, gefüllt von oben nach unten (column-fill). Bei 8 Entities und `stacks: 2` → 2 Säulen à 4 Slider (1–4 links, 5–8 rechts). Hat Vorrang vor `cols`. |
+| `cols` | number | = Anzahl Entities | Säulen pro Reihe, gefüllt von links nach rechts (row-fill). Bei 8 Entities und `cols: 4` ergibt das 2 Reihen à 4 (1–4 oben, 5–8 unten). `0`/unset = alle in einer Reihe. Ignoriert, wenn `stacks` gesetzt ist. |
 | `accent_color` | string | `#f59e0b` | CSS-Farbe für Slider, Fill, Thumb, Hover. |
 | `track_color` | string | `rgba(127,127,127,0.18)` | Hintergrund der Slider-Schiene. |
-| `height` | number | `160` | Höhe des Sliders in px. |
+| `height` | number | `120` | Höhe des Sliders in px. |
 | `invert` | boolean | `false` | Visuell invertieren (0% oben statt unten). |
 | `show_buttons` | boolean | `true` | Auf/Ab/Stop-Buttons anzeigen. |
 | `show_stop` | boolean | `true` | Stop-Button anzeigen (nur wenn `show_buttons`). |

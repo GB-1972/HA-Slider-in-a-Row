@@ -1,4 +1,4 @@
-const CSR_VERSION = '1.1.0';
+const CSR_VERSION = '1.1.1';
 
 console.info(
   `%c COVER-SLIDER-ROW-CARD %c v${CSR_VERSION} `,
@@ -45,9 +45,24 @@ class CoverSliderRowCard extends HTMLElement {
       }
       return obj;
     });
-    const cols = typeof config.cols === 'number' && config.cols > 0
-      ? Math.min(config.cols, items.length)
-      : items.length;
+    const stacksRaw = typeof config.stacks === 'number' && config.stacks > 0
+      ? Math.min(config.stacks, items.length) : 0;
+    const colsRaw = typeof config.cols === 'number' && config.cols > 0
+      ? Math.min(config.cols, items.length) : 0;
+    let displayCols, flowColumn, rows;
+    if (stacksRaw > 0) {
+      displayCols = stacksRaw;
+      rows = Math.ceil(items.length / stacksRaw);
+      flowColumn = true;
+    } else if (colsRaw > 0) {
+      displayCols = colsRaw;
+      rows = 0;
+      flowColumn = false;
+    } else {
+      displayCols = items.length;
+      rows = 0;
+      flowColumn = false;
+    }
     this._config = {
       title: config.title ?? '',
       icon: config.icon ?? 'mdi:solar-panel',
@@ -58,9 +73,12 @@ class CoverSliderRowCard extends HTMLElement {
       show_name: config.show_name !== false,
       show_stop: config.show_stop !== false,
       invert: config.invert === true,
-      height: typeof config.height === 'number' ? config.height : 160,
+      height: typeof config.height === 'number' ? config.height : 120,
       min_panel_width: typeof config.min_panel_width === 'number' ? config.min_panel_width : 56,
-      cols,
+      cols: displayCols,
+      stacks: stacksRaw,
+      _flowColumn: flowColumn,
+      _rows: rows,
     };
     this._items = items;
     this._build();
@@ -105,6 +123,10 @@ class CoverSliderRowCard extends HTMLElement {
     row.style.setProperty('--cs-panel-height', `${this._config.height}px`);
     row.style.setProperty('--cs-min-panel-width', `${this._config.min_panel_width}px`);
     row.style.setProperty('--cs-cols', String(this._config.cols));
+    if (this._config._flowColumn) {
+      row.classList.add('cs-flow-column');
+      row.style.setProperty('--cs-rows', String(this._config._rows));
+    }
 
     this._panelEls = {};
     for (const item of this._items) {
@@ -327,6 +349,10 @@ class CoverSliderRowCard extends HTMLElement {
         align-items: stretch;
         padding: 4px 2px 6px;
       }
+      .cs-row.cs-flow-column {
+        grid-template-rows: repeat(var(--cs-rows, 1), auto);
+        grid-auto-flow: column;
+      }
       .cs-panel {
         min-width: 0;
         display: flex; flex-direction: column; align-items: center;
@@ -431,7 +457,8 @@ const EDITOR_LABELS = {
   entities: 'Cover-Entitaeten',
   title: 'Titel',
   icon: 'Icon',
-  cols: 'Spalten pro Zeile (0 = alle in einer Zeile)',
+  stacks: 'Vertikale Stapel (gefuellt von oben nach unten)',
+  cols: 'Spalten (Row-Fill, ignoriert wenn Stapel gesetzt)',
   height: 'Slider-Hoehe (px)',
   accent_color: 'Akzentfarbe (CSS-Farbe)',
   track_color: 'Schienen-Farbe (CSS-Farbe)',
@@ -461,8 +488,9 @@ const EDITOR_SCHEMA = [
     type: 'grid',
     name: '',
     schema: [
+      { name: 'stacks', selector: { number: { min: 0, max: 12, step: 1, mode: 'box' } } },
       { name: 'cols', selector: { number: { min: 0, max: 12, step: 1, mode: 'box' } } },
-      { name: 'height', selector: { number: { min: 80, max: 400, step: 10, mode: 'box', unit_of_measurement: 'px' } } },
+      { name: 'height', selector: { number: { min: 60, max: 400, step: 10, mode: 'box', unit_of_measurement: 'px' } } },
     ],
   },
   {
@@ -521,8 +549,9 @@ class CoverSliderRowCardEditor extends HTMLElement {
       title: this._config.title ?? '',
       icon: this._config.icon ?? 'mdi:solar-panel',
       entities,
+      stacks: typeof this._config.stacks === 'number' ? this._config.stacks : 0,
       cols: typeof this._config.cols === 'number' ? this._config.cols : 0,
-      height: typeof this._config.height === 'number' ? this._config.height : 160,
+      height: typeof this._config.height === 'number' ? this._config.height : 120,
       accent_color: this._config.accent_color ?? '#f59e0b',
       track_color: this._config.track_color ?? 'rgba(127,127,127,0.18)',
       min_panel_width: typeof this._config.min_panel_width === 'number' ? this._config.min_panel_width : 56,
@@ -565,9 +594,9 @@ class CoverSliderRowCardEditor extends HTMLElement {
       const hint = document.createElement('div');
       hint.className = 'csr-hint';
       hint.innerHTML =
-        'Tipp: Bei 8 Panels und <code>Spalten = 4</code> erh&auml;ltst du 2 Reihen &agrave; 4. ' +
-        'Eigene Namen pro Panel (<code>name:</code>) werden in der UI gespeichert; ' +
-        'feinere Optionen ebenfalls per YAML-Editor erreichbar.';
+        'Tipp: Bei 8 Panels und <code>Stapel = 2</code> erh&auml;ltst du 2 vertikale S&auml;ulen &agrave; 4 Slider ' +
+        '(1&ndash;4 links, 5&ndash;8 rechts). <code>Spalten</code> dagegen f&uuml;llt zeilenweise. ' +
+        'Eigene Namen pro Panel (<code>name:</code>) bleiben in der UI erhalten.';
       wrap.appendChild(form);
       wrap.appendChild(hint);
       this.shadowRoot.appendChild(style);
@@ -594,6 +623,7 @@ class CoverSliderRowCardEditor extends HTMLElement {
     for (const k of ['title', 'icon', 'accent_color', 'track_color']) {
       if (typeof next[k] === 'string' && next[k].trim() === '') delete next[k];
     }
+    if (next.stacks === 0 || next.stacks === null || next.stacks === undefined) delete next.stacks;
     if (next.cols === 0 || next.cols === null || next.cols === undefined) delete next.cols;
     if (next.height === null || next.height === undefined) delete next.height;
     if (next.min_panel_width === null || next.min_panel_width === undefined) delete next.min_panel_width;
