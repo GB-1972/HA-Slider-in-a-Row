@@ -11,10 +11,12 @@ Ursprünglicher Anwendungsfall: 8 vertikal verstellbare Solarpanels als eine Kar
 - **Vertikaler Slider** pro Cover mit Drag- und Tap-to-Position-Bedienung (Service-Call erst beim Loslassen, kein „Service-Spam" beim Ziehen).
 - **Auf / Ab / Stop** als eigene Buttons, Stop in dezentem Rot abgesetzt.
 - **Prozent-Pill** unter jeder Säule mit Tabular-Numerals.
+- **Multi-Row-Layout** über `cols`: z. B. 8 Cover in 2 Reihen à 4 — ohne horizontalen Scrollbalken.
+- **UI-Konfiguration** im Dashboard-Editor (kein YAML zwingend nötig) inkl. Entity-Picker mit Cover-Filter.
 - **Mushroom-Optik**: abgesetzte Tiles, weiche Schatten, frei wählbare Akzentfarbe.
 - **Bewegungs-Indikator**: während `opening`/`closing` umrandet die Säule in der Akzentfarbe.
 - **Long-Press / Rechtsklick** öffnet das HA-„Weitere Infos"-Popup.
-- **Responsive**: scrollt horizontal bei wenig Platz, kleinere Buttons auf Mobile.
+- **Responsive**: kompaktere Buttons auf Mobile.
 - **`unavailable`** wird ausgegraut und deaktiviert.
 - Keine Build-Pipeline, kein Framework — eine Vanilla-JS-Datei.
 
@@ -60,9 +62,10 @@ Vollständig:
 type: custom:cover-slider-row-card
 title: Solarpanels
 icon: mdi:solar-panel
+cols: 4                      # 8 Entities + cols:4 -> 2 Reihen a 4
 accent_color: "#f59e0b"     # jede CSS-Farbe; auch var(--rgb-blue) o.ä.
 track_color: "rgba(127,127,127,0.18)"
-height: 240                  # Slider-Höhe in px
+height: 160                  # Slider-Höhe in px
 invert: false                # true, falls 0%=offen interpretiert werden soll
 show_buttons: true
 show_percentage: true
@@ -75,6 +78,10 @@ entities:
   - entity: cover.solarpanel_3
     name: "P3 Süd"            # optionaler Eigenname pro Panel
   - cover.solarpanel_4
+  - cover.solarpanel_5
+  - cover.solarpanel_6
+  - cover.solarpanel_7
+  - cover.solarpanel_8
 ```
 
 ### Optionen
@@ -84,15 +91,20 @@ entities:
 | `entities` | list | – | Pflicht. Liste von `cover.*`-Entity-IDs oder Objekten `{entity, name}`. |
 | `title` | string | `""` | Header über der Reihe; leer = kein Header. |
 | `icon` | string | `mdi:solar-panel` | Icon im Header. |
+| `cols` | number | = Anzahl Entities | Säulen pro Reihe. Bei 8 Entities und `cols: 4` ergibt das 2 Reihen à 4. `0`/unset = alle in einer Reihe. |
 | `accent_color` | string | `#f59e0b` | CSS-Farbe für Slider, Fill, Thumb, Hover. |
 | `track_color` | string | `rgba(127,127,127,0.18)` | Hintergrund der Slider-Schiene. |
-| `height` | number | `220` | Höhe des Sliders in px. |
+| `height` | number | `160` | Höhe des Sliders in px. |
 | `invert` | boolean | `false` | Visuell invertieren (0% oben statt unten). |
 | `show_buttons` | boolean | `true` | Auf/Ab/Stop-Buttons anzeigen. |
 | `show_stop` | boolean | `true` | Stop-Button anzeigen (nur wenn `show_buttons`). |
 | `show_percentage` | boolean | `true` | Prozent-Pill unter dem Slider. |
 | `show_name` | boolean | `true` | Name über dem Slider. |
-| `min_panel_width` | number | `56` | Mindestbreite pro Säule; bei weniger Platz wird horizontal gescrollt. |
+| `min_panel_width` | number | `56` | Mindestbreite pro Säule. |
+
+### UI-Editor
+
+Beim Hinzufügen der Karte ist der **visuelle Editor** der Default. Du kannst Entities per Multi-Selector mit Cover-Filter auswählen, Spaltenzahl, Höhe und Farben setzen und Optionen per Schalter umlegen. Eigene Namen pro Panel (`name:`) bleiben beim UI-Speichern erhalten — feinere Anpassungen weiterhin per *„Code-Editor anzeigen"*.
 
 ## Voraussetzungen
 

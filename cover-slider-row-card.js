@@ -1,4 +1,4 @@
-const CSR_VERSION = '1.0.0';
+const CSR_VERSION = '1.1.0';
 
 console.info(
   `%c COVER-SLIDER-ROW-CARD %c v${CSR_VERSION} `,
@@ -45,6 +45,9 @@ class CoverSliderRowCard extends HTMLElement {
       }
       return obj;
     });
+    const cols = typeof config.cols === 'number' && config.cols > 0
+      ? Math.min(config.cols, items.length)
+      : items.length;
     this._config = {
       title: config.title ?? '',
       icon: config.icon ?? 'mdi:solar-panel',
@@ -55,8 +58,9 @@ class CoverSliderRowCard extends HTMLElement {
       show_name: config.show_name !== false,
       show_stop: config.show_stop !== false,
       invert: config.invert === true,
-      height: typeof config.height === 'number' ? config.height : 220,
+      height: typeof config.height === 'number' ? config.height : 160,
       min_panel_width: typeof config.min_panel_width === 'number' ? config.min_panel_width : 56,
+      cols,
     };
     this._items = items;
     this._build();
@@ -100,6 +104,7 @@ class CoverSliderRowCard extends HTMLElement {
     row.className = 'cs-row';
     row.style.setProperty('--cs-panel-height', `${this._config.height}px`);
     row.style.setProperty('--cs-min-panel-width', `${this._config.min_panel_width}px`);
+    row.style.setProperty('--cs-cols', String(this._config.cols));
 
     this._panelEls = {};
     for (const item of this._items) {
@@ -316,15 +321,14 @@ class CoverSliderRowCard extends HTMLElement {
       }
       .cs-header ha-icon { color: var(--cs-accent); --mdc-icon-size: 22px; }
       .cs-row {
-        display: flex; flex-direction: row; gap: 8px;
+        display: grid;
+        grid-template-columns: repeat(var(--cs-cols, 1), minmax(0, 1fr));
+        gap: 8px;
         align-items: stretch;
-        overflow-x: auto; overflow-y: hidden;
         padding: 4px 2px 6px;
-        scrollbar-width: thin;
       }
       .cs-panel {
-        flex: 1 1 0;
-        min-width: var(--cs-min-panel-width, 56px);
+        min-width: 0;
         display: flex; flex-direction: column; align-items: center;
         gap: 6px;
         padding: 10px 6px;
@@ -409,7 +413,7 @@ class CoverSliderRowCard extends HTMLElement {
       }
       .cs-unavailable { opacity: 0.4; pointer-events: none; filter: grayscale(0.8); }
       @media (max-width: 600px) {
-        .cs-panel { min-width: 50px; padding: 8px 4px; gap: 5px; }
+        .cs-panel { padding: 8px 4px; gap: 5px; }
         .cs-btn { width: 32px; height: 26px; }
         .cs-slider { width: 30px; }
         .cs-name, .cs-pct { font-size: 0.7rem; }
@@ -417,6 +421,196 @@ class CoverSliderRowCard extends HTMLElement {
       }
     `;
   }
+}
+
+CoverSliderRowCard.getConfigElement = function () {
+  return document.createElement('cover-slider-row-card-editor');
+};
+
+const EDITOR_LABELS = {
+  entities: 'Cover-Entitaeten',
+  title: 'Titel',
+  icon: 'Icon',
+  cols: 'Spalten pro Zeile (0 = alle in einer Zeile)',
+  height: 'Slider-Hoehe (px)',
+  accent_color: 'Akzentfarbe (CSS-Farbe)',
+  track_color: 'Schienen-Farbe (CSS-Farbe)',
+  min_panel_width: 'Min. Saulenbreite (px)',
+  show_buttons: 'Auf/Ab/Stop-Buttons',
+  show_stop: 'Stop-Button',
+  show_percentage: 'Prozentanzeige',
+  show_name: 'Name anzeigen',
+  invert: 'Slider invertieren',
+};
+
+const EDITOR_SCHEMA = [
+  {
+    name: 'entities',
+    required: true,
+    selector: { entity: { multiple: true, filter: { domain: 'cover' } } },
+  },
+  {
+    type: 'grid',
+    name: '',
+    schema: [
+      { name: 'title', selector: { text: {} } },
+      { name: 'icon', selector: { icon: {} } },
+    ],
+  },
+  {
+    type: 'grid',
+    name: '',
+    schema: [
+      { name: 'cols', selector: { number: { min: 0, max: 12, step: 1, mode: 'box' } } },
+      { name: 'height', selector: { number: { min: 80, max: 400, step: 10, mode: 'box', unit_of_measurement: 'px' } } },
+    ],
+  },
+  {
+    type: 'grid',
+    name: '',
+    schema: [
+      { name: 'accent_color', selector: { text: {} } },
+      { name: 'track_color', selector: { text: {} } },
+    ],
+  },
+  { name: 'min_panel_width', selector: { number: { min: 30, max: 200, step: 2, mode: 'box', unit_of_measurement: 'px' } } },
+  {
+    type: 'grid',
+    name: '',
+    schema: [
+      { name: 'show_buttons', selector: { boolean: {} } },
+      { name: 'show_stop', selector: { boolean: {} } },
+      { name: 'show_percentage', selector: { boolean: {} } },
+      { name: 'show_name', selector: { boolean: {} } },
+      { name: 'invert', selector: { boolean: {} } },
+    ],
+  },
+];
+
+class CoverSliderRowCardEditor extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+    this._config = {};
+    this._namesByEntity = {};
+  }
+
+  setConfig(config) {
+    this._config = config || {};
+    this._namesByEntity = {};
+    if (Array.isArray(this._config.entities)) {
+      for (const e of this._config.entities) {
+        if (e && typeof e === 'object' && e.entity && e.name) {
+          this._namesByEntity[e.entity] = e.name;
+        }
+      }
+    }
+    this._render();
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+    this._render();
+  }
+
+  _formData() {
+    const entities = Array.isArray(this._config.entities)
+      ? this._config.entities.map((e) => (typeof e === 'string' ? e : e?.entity)).filter(Boolean)
+      : [];
+    return {
+      title: this._config.title ?? '',
+      icon: this._config.icon ?? 'mdi:solar-panel',
+      entities,
+      cols: typeof this._config.cols === 'number' ? this._config.cols : 0,
+      height: typeof this._config.height === 'number' ? this._config.height : 160,
+      accent_color: this._config.accent_color ?? '#f59e0b',
+      track_color: this._config.track_color ?? 'rgba(127,127,127,0.18)',
+      min_panel_width: typeof this._config.min_panel_width === 'number' ? this._config.min_panel_width : 56,
+      show_buttons: this._config.show_buttons !== false,
+      show_stop: this._config.show_stop !== false,
+      show_percentage: this._config.show_percentage !== false,
+      show_name: this._config.show_name !== false,
+      invert: this._config.invert === true,
+    };
+  }
+
+  _render() {
+    if (!this.shadowRoot) return;
+    if (!this._form) {
+      this.shadowRoot.innerHTML = '';
+      const style = document.createElement('style');
+      style.textContent = `
+        :host { display: block; }
+        .csr-editor { padding: 8px 4px 4px; }
+        .csr-hint {
+          margin: 10px 4px 0;
+          padding: 8px 10px;
+          font-size: 0.8rem;
+          color: var(--secondary-text-color);
+          background: rgba(127,127,127,0.08);
+          border-left: 3px solid var(--cs-accent, #f59e0b);
+          border-radius: 4px;
+        }
+        .csr-hint code {
+          background: rgba(127,127,127,0.18);
+          padding: 1px 4px;
+          border-radius: 3px;
+          font-size: 0.78rem;
+        }
+      `;
+      const wrap = document.createElement('div');
+      wrap.className = 'csr-editor';
+      const form = document.createElement('ha-form');
+      form.addEventListener('value-changed', (ev) => this._valueChanged(ev));
+      const hint = document.createElement('div');
+      hint.className = 'csr-hint';
+      hint.innerHTML =
+        'Tipp: Bei 8 Panels und <code>Spalten = 4</code> erh&auml;ltst du 2 Reihen &agrave; 4. ' +
+        'Eigene Namen pro Panel (<code>name:</code>) werden in der UI gespeichert; ' +
+        'feinere Optionen ebenfalls per YAML-Editor erreichbar.';
+      wrap.appendChild(form);
+      wrap.appendChild(hint);
+      this.shadowRoot.appendChild(style);
+      this.shadowRoot.appendChild(wrap);
+      this._form = form;
+    }
+    this._form.hass = this._hass;
+    this._form.schema = EDITOR_SCHEMA;
+    this._form.data = this._formData();
+    this._form.computeLabel = (s) => EDITOR_LABELS[s.name] ?? s.name;
+  }
+
+  _valueChanged(ev) {
+    ev.stopPropagation();
+    const next = { ...this._config, ...(ev.detail?.value ?? {}) };
+
+    if (Array.isArray(next.entities)) {
+      next.entities = next.entities.map((id) => {
+        const name = this._namesByEntity[id];
+        return name ? { entity: id, name } : id;
+      });
+    }
+
+    for (const k of ['title', 'icon', 'accent_color', 'track_color']) {
+      if (typeof next[k] === 'string' && next[k].trim() === '') delete next[k];
+    }
+    if (next.cols === 0 || next.cols === null || next.cols === undefined) delete next.cols;
+    if (next.height === null || next.height === undefined) delete next.height;
+    if (next.min_panel_width === null || next.min_panel_width === undefined) delete next.min_panel_width;
+    for (const k of ['show_buttons', 'show_stop', 'show_percentage', 'show_name']) {
+      if (next[k] === true) delete next[k];
+    }
+    if (next.invert === false) delete next.invert;
+
+    this._config = next;
+    this.dispatchEvent(
+      new CustomEvent('config-changed', { detail: { config: next }, bubbles: true, composed: true })
+    );
+  }
+}
+
+if (!customElements.get('cover-slider-row-card-editor')) {
+  customElements.define('cover-slider-row-card-editor', CoverSliderRowCardEditor);
 }
 
 if (!customElements.get('cover-slider-row-card')) {
